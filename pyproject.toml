@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memphora"
+version = "1.0.0"
+description = "Memphora SDK - Persistent memory layer for AI agents (SaaS)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Memphora", email = "info@memphora.ai"}
+]
+keywords = ["ai", "memory", "llm", "vector-database", "embeddings", "semantic-search", "saas"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Lightweight SDK dependencies - only what's needed for API client
+dependencies = [
+    "requests>=2.31.0",
+    "urllib3>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://memphora.ai"
+Documentation = "https://memphora.ai/docs"
+Repository = "https://github.com/memphora/memphora-sdk"
+Issues = "https://github.com/memphora/memphora-sdk/issues"
+
+[tool.setuptools]
+py-modules = ["memphora_sdk", "memory_client"]
+
+# Explicitly exclude Docker and deployment files
+[tool.setuptools.package-data]
+exclude = [
+    "deployment/*",
+    "Dockerfile*",
+    "docker-compose*.yml",
+    "*.md",
+    "api/*",
+    "core/*",
+    "tests/*",
+    "examples/*",
+]
+
