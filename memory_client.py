@@ -979,14 +979,12 @@ class MemoryClient:
             Uploaded image memory dictionary
         """
         files = {"file": (filename, image_data)}
-        data = {
-            "user_id": user_id,
-            "metadata": str(metadata) if metadata else "{}"
-        }
+        # user_id is sent as query parameter, not form data
+        # metadata can be sent as form data if needed, but backend doesn't use it from form
         response = self.session.post(
             f"{self.base_url}/memories/image/upload",
-            files=files,
-            data=data
+            params={"user_id": user_id},
+            files=files
         )
         response.raise_for_status()
         return response.json()
@@ -1008,13 +1006,10 @@ class MemoryClient:
         Returns:
             List of matching image memories
         """
+        # user_id, query, and limit are sent as query parameters, not JSON body
         response = self.session.post(
             f"{self.base_url}/memories/image/search",
-            json={
-                "user_id": user_id,
-                "query": query,
-                "limit": limit
-            }
+            params={"user_id": user_id, "query": query, "limit": limit}
         )
         response.raise_for_status()
         return response.json()
@@ -1340,5 +1335,9 @@ class MemoryClient:
             params=params
         )
         response.raise_for_status()
-        return response.json()
+        result = response.json()
+        # Backend returns {"logs": [...]}, extract the list
+        if isinstance(result, dict) and "logs" in result:
+            return result["logs"]
+        return result if isinstance(result, list) else []
 

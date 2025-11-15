@@ -410,7 +410,7 @@ class Memphora:
         try:
             response = self.client.session.get(
                 f"{self.client.base_url}/groups/{group_id}/context",
-                params={"limit": limit}
+                params={"user_id": self.user_id, "limit": limit}
             )
             response.raise_for_status()
             return response.json()
@@ -874,6 +874,216 @@ class Memphora:
         except Exception as e:
             logger.error(f"Failed to check health: {e}")
             return {}
+    
+    # Webhooks
+    def create_webhook(
+        self,
+        url: str,
+        events: List[str],
+        secret: Optional[str] = None
+    ) -> Dict:
+        """Create a webhook."""
+        try:
+            return self.client.create_webhook(
+                url=url,
+                events=events,
+                secret=secret
+            )
+        except Exception as e:
+            logger.error(f"Failed to create webhook: {e}")
+            return {}
+    
+    def list_webhooks(self, user_id: Optional[str] = None) -> List[Dict]:
+        """List all webhooks."""
+        try:
+            return self.client.list_webhooks(user_id=user_id or self.user_id)
+        except Exception as e:
+            logger.error(f"Failed to list webhooks: {e}")
+            return []
+    
+    def get_webhook(self, webhook_id: str) -> Dict:
+        """Get a specific webhook."""
+        try:
+            return self.client.get_webhook(webhook_id)
+        except Exception as e:
+            logger.error(f"Failed to get webhook: {e}")
+            return {}
+    
+    def update_webhook(
+        self,
+        webhook_id: str,
+        url: Optional[str] = None,
+        events: Optional[List[str]] = None,
+        secret: Optional[str] = None,
+        active: Optional[bool] = None
+    ) -> Dict:
+        """Update a webhook."""
+        try:
+            options = {}
+            if url is not None:
+                options["url"] = url
+            if events is not None:
+                options["events"] = events
+            if secret is not None:
+                options["secret"] = secret
+            if active is not None:
+                options["active"] = active
+            
+            return self.client.update_webhook(webhook_id, **options)
+        except Exception as e:
+            logger.error(f"Failed to update webhook: {e}")
+            return {}
+    
+    def delete_webhook(self, webhook_id: str) -> Dict:
+        """Delete a webhook."""
+        try:
+            return self.client.delete_webhook(webhook_id)
+        except Exception as e:
+            logger.error(f"Failed to delete webhook: {e}")
+            return {}
+    
+    def test_webhook(self, webhook_id: str) -> Dict:
+        """Test a webhook."""
+        try:
+            return self.client.test_webhook(webhook_id)
+        except Exception as e:
+            logger.error(f"Failed to test webhook: {e}")
+            return {}
+    
+    # Security & Compliance
+    def export_gdpr(self) -> Dict:
+        """Export GDPR data for this user."""
+        try:
+            return self.client.export_gdpr(self.user_id)
+        except Exception as e:
+            logger.error(f"Failed to export GDPR data: {e}")
+            return {}
+    
+    def delete_gdpr(self) -> Dict:
+        """Delete GDPR data for this user."""
+        try:
+            return self.client.delete_gdpr(self.user_id)
+        except Exception as e:
+            logger.error(f"Failed to delete GDPR data: {e}")
+            return {}
+    
+    def set_retention_policy(
+        self,
+        data_type: str,
+        retention_days: int,
+        organization_id: Optional[str] = None,
+        auto_delete: bool = False
+    ) -> Dict:
+        """Set a data retention policy."""
+        try:
+            return self.client.set_retention_policy(
+                data_type=data_type,
+                retention_days=retention_days,
+                organization_id=organization_id,
+                user_id=self.user_id,
+                auto_delete=auto_delete
+            )
+        except Exception as e:
+            logger.error(f"Failed to set retention policy: {e}")
+            return {}
+    
+    def apply_retention_policies(
+        self,
+        organization_id: Optional[str] = None
+    ) -> Dict:
+        """Apply retention policies."""
+        try:
+            return self.client.apply_retention_policies(
+                organization_id=organization_id,
+                user_id=self.user_id
+            )
+        except Exception as e:
+            logger.error(f"Failed to apply retention policies: {e}")
+            return {}
+    
+    def get_compliance_report(
+        self,
+        organization_id: str,
+        compliance_type: Optional[str] = None
+    ) -> Dict:
+        """Get compliance report."""
+        try:
+            return self.client.get_compliance_report(
+                organization_id=organization_id,
+                compliance_type=compliance_type
+            )
+        except Exception as e:
+            logger.error(f"Failed to get compliance report: {e}")
+            return {}
+    
+    def record_compliance_event(
+        self,
+        compliance_type: str,
+        event_type: str,
+        organization_id: Optional[str] = None,
+        data_subject_id: Optional[str] = None,
+        details: Optional[Dict] = None
+    ) -> Dict:
+        """Record a compliance event."""
+        try:
+            return self.client.record_compliance_event(
+                compliance_type=compliance_type,
+                event_type=event_type,
+                user_id=self.user_id,
+                organization_id=organization_id,
+                data_subject_id=data_subject_id,
+                details=details or {}
+            )
+        except Exception as e:
+            logger.error(f"Failed to record compliance event: {e}")
+            return {}
+    
+    def encrypt_data(self, data: str) -> Dict:
+        """Encrypt sensitive data."""
+        try:
+            return self.client.encrypt_data(data)
+        except Exception as e:
+            logger.error(f"Failed to encrypt data: {e}")
+            return {}
+    
+    def decrypt_data(self, encrypted_data: str) -> Dict:
+        """Decrypt sensitive data."""
+        try:
+            return self.client.decrypt_data(encrypted_data)
+        except Exception as e:
+            logger.error(f"Failed to decrypt data: {e}")
+            return {}
+    
+    # Observability
+    def get_metrics(self) -> Dict:
+        """Get system metrics."""
+        try:
+            return self.client.get_metrics()
+        except Exception as e:
+            logger.error(f"Failed to get metrics: {e}")
+            return {}
+    
+    def get_metrics_summary(self) -> Dict:
+        """Get metrics summary."""
+        try:
+            return self.client.get_metrics_summary()
+        except Exception as e:
+            logger.error(f"Failed to get metrics summary: {e}")
+            return {}
+    
+    def get_audit_logs(
+        self,
+        limit: int = 100
+    ) -> List[Dict]:
+        """Get audit logs for this user."""
+        try:
+            return self.client.get_audit_logs(
+                user_id=self.user_id,
+                limit=limit
+            )
+        except Exception as e:
+            logger.error(f"Failed to get audit logs: {e}")
+            return []
     
     # Delegate all other methods to client
     def __getattr__(self, name):
