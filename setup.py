@@ -8,7 +8,7 @@ long_description = readme_file.read_text() if readme_file.exists() else "Memphor
 
 setup(
     name="memphora",
-    version="1.3.1",
+    version="1.3.2",
     description="Memphora SDK - Persistent memory layer for AI agents (SaaS)",
     long_description=long_description,
     long_description_content_type="text/markdown",

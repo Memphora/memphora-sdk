@@ -277,10 +277,20 @@ class Memphora:
     def get_conversation(self, conversation_id: str) -> Dict:
         """Get a specific conversation by ID."""
         try:
-            return self.client.get_conversation(conversation_id)
+            result = self.client.get_conversation(conversation_id)
+            # If result is None or empty, return empty dict for backward compatibility
+            if not result:
+                return {}
+            return result
         except Exception as e:
+            # Check if it's an HTTP error with 404 status (requests library raises HTTPError)
+            # Return empty dict for backward compatibility with tests that expect dict on 404
+            error_msg = str(e)
+            if "404" in error_msg or (hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 404):
+                return {}
+            # For other errors, log and re-raise
             logger.error(f"Failed to get conversation: {e}")
-            return {}
+            raise
     
     def get_summary(self) -> Dict:
         """Get rolling summary of conversations."""
