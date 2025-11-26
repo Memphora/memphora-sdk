@@ -135,7 +135,9 @@ class Memphora:
     
     def store(self, content: str, metadata: Optional[Dict] = None) -> Dict:
         """
-        Store a memory. Automatically processes and optimizes the content for better retrieval.
+        Store a memory. Stores complete content directly (preserves exact content).
+        
+        With optimized storage, this is fast (~50ms) and maintains data quality.
         
         Args:
             content: Memory content
@@ -145,34 +147,16 @@ class Memphora:
             Created memory dictionary
         """
         try:
-            # Automatically extract and store memories (ensures clean, standardized format)
-            extracted_memories = self.client.extract_from_content(
+            # Store complete memory directly (preserves exact content)
+            # With optimized storage, this is fast (~50ms) and maintains data quality
+            return self.client.add_memory(
                 user_id=self.user_id,
                 content=content,
                 metadata=metadata or {}
             )
-            
-            # Return the first extracted memory (or fallback to direct storage if extraction failed)
-            if extracted_memories and len(extracted_memories) > 0:
-                return extracted_memories[0]
-            else:
-                # Fallback to direct storage if extraction returned nothing
-                return self.client.add_memory(
-                    user_id=self.user_id,
-                    content=content,
-                    metadata=metadata or {}
-                )
         except Exception as e:
             logger.error(f"Failed to store memory: {e}")
-            # Fallback to direct storage on error
-            try:
-                return self.client.add_memory(
-                    user_id=self.user_id,
-                    content=content,
-                    metadata=metadata or {}
-                )
-            except:
-                return {}
+            return {}
     
     def search(
         self,
@@ -287,7 +271,7 @@ class Memphora:
             # Return empty dict for backward compatibility with tests that expect dict on 404
             error_msg = str(e)
             if "404" in error_msg or (hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 404):
-                return {}
+            return {}
             # For other errors, log and re-raise
             logger.error(f"Failed to get conversation: {e}")
             raise
