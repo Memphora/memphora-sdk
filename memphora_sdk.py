@@ -735,5 +735,22 @@ def remember(user_id: str, api_key: Optional[str] = None, api_url: Optional[str]
 # Export main classes
 __all__ = ['Memphora', 'init', 'remember']
 
-
-
+# Import integrations (optional - only if frameworks are installed)
+try:
+    from integrations import (
+        MemphoraLangChain,
+        MemphoraLlamaIndex,
+        MemphoraCrewAI,
+        MemphoraAgentMemory,
+        MemphoraAutoGen,
+    )
+    __all__.extend([
+        'MemphoraLangChain',
+        'MemphoraLlamaIndex',
+        'MemphoraCrewAI',
+        'MemphoraAgentMemory',
+        'MemphoraAutoGen',
+    ])
+except ImportError:
+    # Integrations not available - that's OK, core SDK still works
+    pass
