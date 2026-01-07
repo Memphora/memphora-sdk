@@ -168,7 +168,7 @@ class Memphora:
         rerank_provider: str = "auto",
         cohere_api_key: Optional[str] = None,
         jina_api_key: Optional[str] = None
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Search memories with optional external reranking.
         
@@ -181,7 +181,17 @@ class Memphora:
             jina_api_key: Optional Jina AI API key (if not configured on backend)
         
         Returns:
-            List of matching memory dictionaries
+            Dict with:
+                - facts: List of matching facts with memory_id, text, timestamp, similarity
+                - critical_context: Important context for LLM agents (if available)
+                - metadata: Extracted metadata like key_entities, counts, dates
+        
+        Example:
+            result = memory.search("user preferences")
+            for fact in result["facts"]:
+                print(fact["text"], fact["similarity"])
+            if result.get("critical_context"):
+                print(f"Important: {result['critical_context']}")
         """
         try:
             return self.client.search_memories(
@@ -195,7 +205,7 @@ class Memphora:
             )
         except Exception as e:
             logger.error(f"Failed to search memories: {e}")
-            return []
+            return {"facts": [], "critical_context": None, "metadata": {}}
     
     def store_conversation(self, user_message: str, ai_response: str) -> None:
         """Store a conversation for automatic memory extraction."""
@@ -260,37 +270,6 @@ class Memphora:
             return []
     
     # Conversation Management
-    def get_conversation(self, conversation_id: str) -> Dict:
-        """Get a specific conversation by ID."""
-        try:
-            result = self.client.get_conversation(conversation_id)
-            # If result is None or empty, return empty dict for backward compatibility
-            if not result:
-                return {}
-            return result
-        except Exception as e:
-            # Check if it's an HTTP error with 404 status (requests library raises HTTPError)
-            # Return empty dict for backward compatibility with tests that expect dict on 404
-            error_msg = str(e)
-            if "404" in error_msg or (hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 404):
-                return {}
-            # For other errors, log and re-raise
-            logger.error(f"Failed to get conversation: {e}")
-            raise
-    
-    def get_summary(self) -> Dict:
-        """Get rolling summary of conversations."""
-        try:
-            response = self.client.session.get(
-                f"{self.client.base_url}/memory/summary/{self.user_id}"
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Failed to get summary: {e}")
-            return {}
-    
-    # Multi-Agent Support
     def store_agent_memory(
         self,
         agent_id: str,
@@ -322,8 +301,15 @@ class Memphora:
         query: str,
         run_id: Optional[str] = None,
         limit: int = 10
-    ) -> List[Dict]:
-        """Search memories for a specific agent."""
+    ) -> Dict:
+        """
+        Search memories for a specific agent.
+        
+        Returns:
+            Dict with:
+                - facts: List of matching facts with memory_id, text, timestamp, similarity
+                - agent_id: The agent ID searched
+        """
         try:
             response = self.client.session.post(
                 f"{self.client.base_url}/agents/memories/search",
@@ -336,10 +322,26 @@ class Memphora:
                 }
             )
             response.raise_for_status()
-            return response.json()
+            memories = response.json()
+            
+            # Convert to structured format matching main search()
+            facts = []
+            for mem in memories:
+                facts.append({
+                    "text": mem.get("content", ""),
+                    "memory_id": mem.get("id") or mem.get("memory_id"),
+                    "timestamp": mem.get("timestamp"),
+                    "similarity": mem.get("similarity")
+                })
+            
+            return {
+                "facts": facts,
+                "agent_id": agent_id,
+                "metadata": {"run_id": run_id} if run_id else {}
+            }
         except Exception as e:
             logger.error(f"Failed to search agent memories: {e}")
-            return []
+            return {"facts": [], "agent_id": agent_id, "metadata": {}}
     
     def get_agent_memories(self, agent_id: str, limit: int = 100) -> List[Dict]:
         """Get all memories for a specific agent."""
@@ -383,8 +385,15 @@ class Memphora:
         group_id: str,
         query: str,
         limit: int = 10
-    ) -> List[Dict]:
-        """Search memories for a group."""
+    ) -> Dict:
+        """
+        Search memories for a group.
+        
+        Returns:
+            Dict with:
+                - facts: List of matching facts with memory_id, text, timestamp, similarity
+                - group_id: The group ID searched
+        """
         try:
             response = self.client.session.post(
                 f"{self.client.base_url}/groups/memories/search",
@@ -396,10 +405,26 @@ class Memphora:
                 }
             )
             response.raise_for_status()
-            return response.json()
+            memories = response.json()
+            
+            # Convert to structured format matching main search()
+            facts = []
+            for mem in memories:
+                facts.append({
+                    "text": mem.get("content", ""),
+                    "memory_id": mem.get("id") or mem.get("memory_id"),
+                    "timestamp": mem.get("timestamp"),
+                    "similarity": mem.get("similarity")
+                })
+            
+            return {
+                "facts": facts,
+                "group_id": group_id,
+                "metadata": {}
+            }
         except Exception as e:
             logger.error(f"Failed to search group memories: {e}")
-            return []
+            return {"facts": [], "group_id": group_id, "metadata": {}}
     
     def get_group_context(self, group_id: str, limit: int = 50) -> Dict:
         """Get context for a group."""
@@ -415,109 +440,6 @@ class Memphora:
             return {}
     
     # User Analytics
-    def get_user_analytics(self) -> Dict:
-        """Get user's memory statistics and insights."""
-        try:
-            response = self.client.session.get(
-                f"{self.client.base_url}/analytics/user-stats/{self.user_id}"
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Failed to get user analytics: {e}")
-            return {}
-    
-    def get_memory_growth(self, days: int = 30) -> Dict:
-        """Track memory growth over time."""
-        try:
-            response = self.client.session.get(
-                f"{self.client.base_url}/analytics/memory-growth",
-                params={"days": days, "user_id": self.user_id}
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Failed to get memory growth: {e}")
-            return {}
-    
-    # Memory Relationships
-    def get_related_memories(self, memory_id: str, limit: int = 10) -> List[Dict]:
-        """Get memories related to a specific memory."""
-        try:
-            context = self.client.get_memory_context(memory_id=memory_id, depth=1)
-            return context.get("related_memories", [])[:limit]
-        except Exception as e:
-            logger.error(f"Failed to get related memories: {e}")
-            return []
-    
-    # Advanced Search Methods
-    def search_advanced(
-        self,
-        query: str,
-        limit: int = 5,
-        filters: Optional[Dict] = None,
-        include_related: bool = False,
-        min_score: float = 0.0,
-        sort_by: str = "relevance"
-    ) -> List[Dict]:
-        """Advanced search with filtering and scoring."""
-        try:
-            return self.client.search_advanced(
-                user_id=self.user_id,
-                query=query,
-                limit=limit,
-                filters=filters or {},
-                include_related=include_related,
-                min_score=min_score,
-                sort_by=sort_by
-            )
-        except Exception as e:
-            logger.error(f"Failed to search advanced: {e}")
-            return []
-    
-    def search_optimized(
-        self,
-        query: str,
-        max_tokens: int = 2000,
-        max_memories: int = 20,
-        use_compression: bool = True,
-        use_cache: bool = True
-    ) -> Dict:
-        """Optimized search for better performance."""
-        try:
-            return self.client.search_optimized(
-                user_id=self.user_id,
-                query=query,
-                max_tokens=max_tokens,
-                max_memories=max_memories,
-                use_compression=use_compression,
-                use_cache=use_cache
-            )
-        except Exception as e:
-            logger.error(f"Failed to search optimized: {e}")
-            return {}
-    
-    def search_enhanced(
-        self,
-        query: str,
-        max_tokens: int = 1500,
-        max_memories: int = 15,
-        use_compression: bool = True
-    ) -> Dict:
-        """Enhanced search with maximum performance."""
-        try:
-            return self.client.search_enhanced(
-                user_id=self.user_id,
-                query=query,
-                max_tokens=max_tokens,
-                max_memories=max_memories,
-                use_compression=use_compression
-            )
-        except Exception as e:
-            logger.error(f"Failed to search enhanced: {e}")
-            return {}
-    
-    # Batch Operations
     def batch_store(
         self,
         memories: List[Dict[str, str]],
@@ -535,61 +457,6 @@ class Memphora:
             return []
     
     # Memory Operations
-    def merge(
-        self,
-        memory_ids: List[str],
-        strategy: str = "combine"
-    ) -> Dict:
-        """Merge multiple memories."""
-        try:
-            return self.client.merge_memories(
-                memory_ids=memory_ids,
-                merge_strategy=strategy
-            )
-        except Exception as e:
-            logger.error(f"Failed to merge memories: {e}")
-            return {}
-    
-    def find_contradictions(
-        self,
-        memory_id: str,
-        threshold: float = 0.7
-    ) -> List[Dict]:
-        """Find potentially contradictory memories."""
-        try:
-            return self.client.find_contradictions(
-                memory_id=memory_id,
-                similarity_threshold=threshold
-            )
-        except Exception as e:
-            logger.error(f"Failed to find contradictions: {e}")
-            return []
-    
-    def get_context_for_memory(
-        self,
-        memory_id: str,
-        depth: int = 2
-    ) -> Dict:
-        """Get full context around a memory."""
-        try:
-            return self.client.get_memory_context(
-                memory_id=memory_id,
-                depth=depth
-            )
-        except Exception as e:
-            logger.error(f"Failed to get context for memory: {e}")
-            return {}
-    
-    # Statistics
-    def get_statistics(self) -> Dict:
-        """Get user's memory statistics and insights."""
-        try:
-            return self.client.get_user_statistics(self.user_id)
-        except Exception as e:
-            logger.error(f"Failed to get statistics: {e}")
-            return {}
-    
-    # Conversation Management
     def record_conversation(
         self,
         conversation: List[Dict[str, str]],
@@ -676,131 +543,117 @@ class Memphora:
             logger.error(f"Failed to search images: {e}")
             return []
     
+    # Document & Visual Processing
+    
+    def ingest_document(
+        self,
+        content_type: str,
+        url: Optional[str] = None,
+        data: Optional[str] = None,
+        text: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+        async_processing: bool = True
+    ) -> Dict:
+        """
+        Ingest any document type into memory.
+        
+        Supports PDF, images, URLs, and plain text. Automatically extracts
+        and stores relevant information as searchable memories.
+        
+        Args:
+            content_type: One of "pdf_url", "pdf_base64", "image_url", 
+                         "image_base64", "url", or "text"
+            url: URL for pdf_url, image_url, or url types
+            data: Base64 data for pdf_base64 or image_base64 types
+            text: Plain text for text type
+            metadata: Optional metadata for the document
+            async_processing: If True, returns immediately with job_id (recommended)
+            
+        Returns:
+            If async: Dict with job_id for tracking
+            If sync: Dict with extracted memories
+        """
+        try:
+            content = {"type": content_type}
+            if url:
+                content["url"] = url
+            if data:
+                content["data"] = data
+            if text:
+                content["text"] = text
+                
+            response = self.client.session.post(
+                f"{self.client.base_url}/documents",
+                json={
+                    "user_id": self.user_id,
+                    "content": content,
+                    "metadata": metadata or {},
+                    "async_processing": async_processing
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Failed to ingest document: {e}")
+            return {"status": "error", "error": str(e)}
+    
+    def upload_document(
+        self,
+        file_data: bytes,
+        filename: str,
+        metadata: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Upload any document type and create memories.
+        
+        Supports PDF, images, text files, markdown, JSON, CSV, and more.
+        Files are processed automatically based on file extension.
+        
+        Args:
+            file_data: Raw file bytes
+            filename: Filename with extension (e.g., "report.pdf", "notes.txt")
+            metadata: Optional metadata for the document
+            
+        Returns:
+            Dict with job_id for tracking (async processing)
+        """
+        try:
+            files = {"file": (filename, file_data)}
+            response = self.client.session.post(
+                f"{self.client.base_url}/documents/upload",
+                params={"user_id": self.user_id},
+                files=files
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Failed to upload document: {e}")
+            return {"status": "error", "error": str(e)}
+    
+    def get_image_url(self, memory_id: str) -> Dict:
+        """
+        Get a fresh signed URL for an image memory.
+        
+        Signed URLs expire after 7 days. Use this to get a new URL
+        when the previous one has expired.
+        
+        Args:
+            memory_id: ID of the image memory
+            
+        Returns:
+            Dict with image_url or error message
+        """
+        try:
+            response = self.client.session.get(
+                f"{self.client.base_url}/memories/image/{memory_id}/url"
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Failed to get image URL: {e}")
+            return {"status": "error", "error": str(e)}
+    
     # Version Control
-    def get_versions(
-        self,
-        memory_id: str,
-        limit: int = 50
-    ) -> List[Dict]:
-        """Get memory versions."""
-        try:
-            return self.client.get_memory_versions(
-                memory_id=memory_id,
-                limit=limit
-            )
-        except Exception as e:
-            logger.error(f"Failed to get versions: {e}")
-            return []
-    
-    def rollback(
-        self,
-        memory_id: str,
-        target_version: int
-    ) -> Dict:
-        """Rollback memory to a version."""
-        try:
-            return self.client.rollback_memory(
-                memory_id=memory_id,
-                target_version=target_version,
-                user_id=self.user_id
-            )
-        except Exception as e:
-            logger.error(f"Failed to rollback: {e}")
-            return {}
-    
-    # Advanced Memory Operations (continued)
-    def link(
-        self,
-        memory_id: str,
-        target_id: str,
-        relationship_type: str = "related"
-    ) -> Dict:
-        """Link two memories in the graph."""
-        try:
-            return self.client.link_memories(
-                memory_id=memory_id,
-                target_id=target_id,
-                relationship_type=relationship_type
-            )
-        except Exception as e:
-            logger.error(f"Failed to link memories: {e}")
-            return {}
-    
-    def find_path(
-        self,
-        source_id: str,
-        target_id: str
-    ) -> Dict:
-        """Find shortest path between two memories in the graph."""
-        try:
-            return self.client.find_memory_path(
-                source_id=source_id,
-                target_id=target_id
-            )
-        except Exception as e:
-            logger.error(f"Failed to find path: {e}")
-            return {}
-    
-    # Advanced Search Context Methods
-    def get_optimized_context(
-        self,
-        query: str,
-        max_tokens: int = 2000,
-        max_memories: int = 20,
-        use_compression: bool = True,
-        use_cache: bool = True
-    ) -> str:
-        """Get optimized context for a query (returns formatted string)."""
-        try:
-            result = self.search_optimized(
-                query=query,
-                max_tokens=max_tokens,
-                max_memories=max_memories,
-                use_compression=use_compression,
-                use_cache=use_cache
-            )
-            return result.get('context', '')
-        except Exception as e:
-            logger.error(f"Failed to get optimized context: {e}")
-            return ''
-    
-    def get_enhanced_context(
-        self,
-        query: str,
-        max_tokens: int = 1500,
-        max_memories: int = 15,
-        use_compression: bool = True
-    ) -> str:
-        """Get enhanced context for a query (returns formatted string)."""
-        try:
-            result = self.search_enhanced(
-                query=query,
-                max_tokens=max_tokens,
-                max_memories=max_memories,
-                use_compression=use_compression
-            )
-            return result.get('context', '')
-        except Exception as e:
-            logger.error(f"Failed to get enhanced context: {e}")
-            return ''
-    
-    # Version Control (continued)
-    def compare_versions(
-        self,
-        version_id_1: str,
-        version_id_2: str
-    ) -> Dict:
-        """Compare two versions of a memory."""
-        try:
-            return self.client.compare_versions(
-                version_id_1=version_id_1,
-                version_id_2=version_id_2
-            )
-        except Exception as e:
-            logger.error(f"Failed to compare versions: {e}")
-            return {}
-    
-    # Export/Import
     def export(
         self,
         format: str = "json"
@@ -815,23 +668,6 @@ class Memphora:
             logger.error(f"Failed to export: {e}")
             return {}
     
-    def import_memories(
-        self,
-        data: str,
-        format: str = "json"
-    ) -> Dict:
-        """Import memories."""
-        try:
-            return self.client.import_memories(
-                user_id=self.user_id,
-                data=data,
-                format=format
-            )
-        except Exception as e:
-            logger.error(f"Failed to import: {e}")
-            return {}
-    
-    # Image Operations (continued)
     def upload_image(
         self,
         image_data: bytes,
@@ -851,18 +687,6 @@ class Memphora:
             return {}
     
     # Text Processing
-    def concise(
-        self,
-        text: str
-    ) -> Dict:
-        """Make text more concise."""
-        try:
-            return self.client.concise_text(text=text)
-        except Exception as e:
-            logger.error(f"Failed to concise text: {e}")
-            return {}
-    
-    # Health Check
     def health(self) -> Dict:
         """Check API health."""
         try:
@@ -872,216 +696,6 @@ class Memphora:
             return {}
     
     # Webhooks
-    def create_webhook(
-        self,
-        url: str,
-        events: List[str],
-        secret: Optional[str] = None
-    ) -> Dict:
-        """Create a webhook."""
-        try:
-            return self.client.create_webhook(
-                url=url,
-                events=events,
-                secret=secret
-            )
-        except Exception as e:
-            logger.error(f"Failed to create webhook: {e}")
-            return {}
-    
-    def list_webhooks(self, user_id: Optional[str] = None) -> List[Dict]:
-        """List all webhooks."""
-        try:
-            return self.client.list_webhooks(user_id=user_id or self.user_id)
-        except Exception as e:
-            logger.error(f"Failed to list webhooks: {e}")
-            return []
-    
-    def get_webhook(self, webhook_id: str) -> Dict:
-        """Get a specific webhook."""
-        try:
-            return self.client.get_webhook(webhook_id)
-        except Exception as e:
-            logger.error(f"Failed to get webhook: {e}")
-            return {}
-    
-    def update_webhook(
-        self,
-        webhook_id: str,
-        url: Optional[str] = None,
-        events: Optional[List[str]] = None,
-        secret: Optional[str] = None,
-        active: Optional[bool] = None
-    ) -> Dict:
-        """Update a webhook."""
-        try:
-            options = {}
-            if url is not None:
-                options["url"] = url
-            if events is not None:
-                options["events"] = events
-            if secret is not None:
-                options["secret"] = secret
-            if active is not None:
-                options["active"] = active
-            
-            return self.client.update_webhook(webhook_id, **options)
-        except Exception as e:
-            logger.error(f"Failed to update webhook: {e}")
-            return {}
-    
-    def delete_webhook(self, webhook_id: str) -> Dict:
-        """Delete a webhook."""
-        try:
-            return self.client.delete_webhook(webhook_id)
-        except Exception as e:
-            logger.error(f"Failed to delete webhook: {e}")
-            return {}
-    
-    def test_webhook(self, webhook_id: str) -> Dict:
-        """Test a webhook."""
-        try:
-            return self.client.test_webhook(webhook_id)
-        except Exception as e:
-            logger.error(f"Failed to test webhook: {e}")
-            return {}
-    
-    # Security & Compliance
-    def export_gdpr(self) -> Dict:
-        """Export GDPR data for this user."""
-        try:
-            return self.client.export_gdpr(self.user_id)
-        except Exception as e:
-            logger.error(f"Failed to export GDPR data: {e}")
-            return {}
-    
-    def delete_gdpr(self) -> Dict:
-        """Delete GDPR data for this user."""
-        try:
-            return self.client.delete_gdpr(self.user_id)
-        except Exception as e:
-            logger.error(f"Failed to delete GDPR data: {e}")
-            return {}
-    
-    def set_retention_policy(
-        self,
-        data_type: str,
-        retention_days: int,
-        organization_id: Optional[str] = None,
-        auto_delete: bool = False
-    ) -> Dict:
-        """Set a data retention policy."""
-        try:
-            return self.client.set_retention_policy(
-                data_type=data_type,
-                retention_days=retention_days,
-                organization_id=organization_id,
-                user_id=self.user_id,
-                auto_delete=auto_delete
-            )
-        except Exception as e:
-            logger.error(f"Failed to set retention policy: {e}")
-            return {}
-    
-    def apply_retention_policies(
-        self,
-        organization_id: Optional[str] = None
-    ) -> Dict:
-        """Apply retention policies."""
-        try:
-            return self.client.apply_retention_policies(
-                organization_id=organization_id,
-                user_id=self.user_id
-            )
-        except Exception as e:
-            logger.error(f"Failed to apply retention policies: {e}")
-            return {}
-    
-    def get_compliance_report(
-        self,
-        organization_id: str,
-        compliance_type: Optional[str] = None
-    ) -> Dict:
-        """Get compliance report."""
-        try:
-            return self.client.get_compliance_report(
-                organization_id=organization_id,
-                compliance_type=compliance_type
-            )
-        except Exception as e:
-            logger.error(f"Failed to get compliance report: {e}")
-            return {}
-    
-    def record_compliance_event(
-        self,
-        compliance_type: str,
-        event_type: str,
-        organization_id: Optional[str] = None,
-        data_subject_id: Optional[str] = None,
-        details: Optional[Dict] = None
-    ) -> Dict:
-        """Record a compliance event."""
-        try:
-            return self.client.record_compliance_event(
-                compliance_type=compliance_type,
-                event_type=event_type,
-                user_id=self.user_id,
-                organization_id=organization_id,
-                data_subject_id=data_subject_id,
-                details=details or {}
-            )
-        except Exception as e:
-            logger.error(f"Failed to record compliance event: {e}")
-            return {}
-    
-    def encrypt_data(self, data: str) -> Dict:
-        """Encrypt sensitive data."""
-        try:
-            return self.client.encrypt_data(data)
-        except Exception as e:
-            logger.error(f"Failed to encrypt data: {e}")
-            return {}
-    
-    def decrypt_data(self, encrypted_data: str) -> Dict:
-        """Decrypt sensitive data."""
-        try:
-            return self.client.decrypt_data(encrypted_data)
-        except Exception as e:
-            logger.error(f"Failed to decrypt data: {e}")
-            return {}
-    
-    # Observability
-    def get_metrics(self) -> Dict:
-        """Get system metrics."""
-        try:
-            return self.client.get_metrics()
-        except Exception as e:
-            logger.error(f"Failed to get metrics: {e}")
-            return {}
-    
-    def get_metrics_summary(self) -> Dict:
-        """Get metrics summary."""
-        try:
-            return self.client.get_metrics_summary()
-        except Exception as e:
-            logger.error(f"Failed to get metrics summary: {e}")
-            return {}
-    
-    def get_audit_logs(
-        self,
-        limit: int = 100
-    ) -> List[Dict]:
-        """Get audit logs for this user."""
-        try:
-            return self.client.get_audit_logs(
-                user_id=self.user_id,
-                limit=limit
-            )
-        except Exception as e:
-            logger.error(f"Failed to get audit logs: {e}")
-            return []
-    
-    # Delegate all other methods to client
     def __getattr__(self, name):
         """Delegate unknown methods to client for backward compatibility."""
         if hasattr(self.client, name):
