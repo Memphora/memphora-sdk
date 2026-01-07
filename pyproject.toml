@@ -48,7 +48,7 @@ Repository = "https://github.com/Memphora/memphora-sdk"
 Issues = "https://github.com/Memphora/memphora-sdk/issues"
 
 [tool.setuptools]
-py-modules = ["memphora_sdk", "memory_client"]
+py-modules = ["memphora_sdk", "memory_client", "integrations"]
 
 # Explicitly exclude Docker and deployment files
 [tool.setuptools.package-data]
